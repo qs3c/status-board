@@ -4,6 +4,6 @@
   "version": "1.0.0",
   "description": "Local-first daily status tracker synced through a GitHub repo",
   "scripts": {
-    "test": "node --test test/"
+    "test": "node --test"
   }
 }

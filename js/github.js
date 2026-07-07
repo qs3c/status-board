@@ -21,5 +21,23 @@
     return JSON.parse(json);
   }
 
-  return { encodeContent: encodeContent, decodeContent: decodeContent };
+  async function sync(deps, localData) {
+    var maxRetries = 3;
+    for (var attempt = 0; attempt <= maxRetries; attempt++) {
+      var remote = await deps.getRemote();
+      var merged = store.mergeData(localData, remote.data);
+      try {
+        await deps.putRemote(merged, remote.sha);
+        return merged;
+      } catch (err) {
+        if (err && err.status === 409 && attempt < maxRetries) {
+          localData = merged;
+          continue;
+        }
+        throw err;
+      }
+    }
+  }
+
+  return { encodeContent: encodeContent, decodeContent: decodeContent, sync: sync };
 });
