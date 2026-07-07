@@ -68,3 +68,68 @@ test('sync gives up after max retries and rejects', async () => {
   };
   await assert.rejects(() => github.sync(deps, store.emptyData()), /conflict/);
 });
+
+test('getRemote fetches GitHub content and decodes status data', async () => {
+  const data = store.setEntry(store.emptyData(), '2026-07-07', 'very_good', 'remote', new Date('2026-07-07T10:00:00Z'));
+  const originalFetch = global.fetch;
+  let seenUrl = '';
+  let seenOptions = null;
+  global.fetch = async (url, options) => {
+    seenUrl = url;
+    seenOptions = options;
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ content: github.encodeContent(data), sha: 'remote-sha' })
+    };
+  };
+
+  try {
+    const result = await github.getRemote({
+      token: 'token-1',
+      owner: 'octo',
+      repo: 'status-data',
+      branch: 'main',
+      path: 'folder/status.json'
+    });
+    assert.strictEqual(seenUrl, 'https://api.github.com/repos/octo/status-data/contents/folder/status.json?ref=main');
+    assert.strictEqual(seenOptions.headers.Authorization, 'Bearer token-1');
+    assert.deepStrictEqual(result, { data, sha: 'remote-sha' });
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test('getRemote returns empty data when the file does not exist yet', async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async () => ({ ok: false, status: 404 });
+
+  try {
+    const result = await github.getRemote({ owner: 'octo', repo: 'status-data', branch: 'main', path: 'status.json' });
+    assert.deepStrictEqual(result, { data: store.emptyData(), sha: null });
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test('putRemote sends encoded content and surfaces 409 conflicts', async () => {
+  const data = store.setEntry(store.emptyData(), '2026-07-07', 'good', 'local', new Date('2026-07-07T10:00:00Z'));
+  const originalFetch = global.fetch;
+  let body = null;
+  global.fetch = async (url, options) => {
+    body = JSON.parse(options.body);
+    return { ok: false, status: 409 };
+  };
+
+  try {
+    await assert.rejects(
+      () => github.putRemote({ owner: 'octo', repo: 'status-data', branch: 'main', path: 'status.json' }, data, 'old-sha'),
+      /conflict/
+    );
+    assert.deepStrictEqual(github.decodeContent(body.content), data);
+    assert.strictEqual(body.sha, 'old-sha');
+    assert.strictEqual(body.branch, 'main');
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
