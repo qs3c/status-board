@@ -122,6 +122,13 @@
     }
 
     var note = document.getElementById('note').value;
+    if (existing.level === level && (existing.note || '') === (note || '')) {
+      state.pendingLevel = null;
+      renderLevels();
+      setSync('No changes to save.');
+      return;
+    }
+
     state.data = store.setEntry(state.data, state.selectedDate, level, note, new Date());
     saveData();
     renderBoard();

@@ -21,11 +21,29 @@
     return JSON.parse(json);
   }
 
+  function stableStringify(value) {
+    if (!value || typeof value !== 'object') return JSON.stringify(value);
+    if (Array.isArray(value)) return '[' + value.map(stableStringify).join(',') + ']';
+
+    var keys = Object.keys(value).sort();
+    var parts = [];
+    for (var i = 0; i < keys.length; i++) {
+      parts.push(JSON.stringify(keys[i]) + ':' + stableStringify(value[keys[i]]));
+    }
+    return '{' + parts.join(',') + '}';
+  }
+
+  function sameData(a, b) {
+    return stableStringify(a) === stableStringify(b);
+  }
+
   async function sync(deps, localData) {
     var maxRetries = 3;
     for (var attempt = 0; attempt <= maxRetries; attempt++) {
       var remote = await deps.getRemote();
       var merged = store.mergeData(localData, remote.data);
+      if (sameData(merged, remote.data)) return merged;
+
       try {
         await deps.putRemote(merged, remote.sha);
         return merged;

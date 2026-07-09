@@ -90,10 +90,15 @@ function setupDom() {
   return { elements, storage };
 }
 
+function loadApp() {
+  delete require.cache[require.resolve('../js/app.js')];
+  require('../js/app.js');
+}
+
 test('submitting a selected status saves it locally and renders a local-only sync message', () => {
   const { elements, storage } = setupDom();
 
-  require('../js/app.js');
+  loadApp();
 
   elements.levels.children[2].click();
   elements.note.value = 'solid day';
@@ -104,4 +109,25 @@ test('submitting a selected status saves it locally and renders a local-only syn
   assert.deepStrictEqual(saved.entries[today].level, 'very_good');
   assert.deepStrictEqual(saved.entries[today].note, 'solid day');
   assert.strictEqual(elements['sync-status'].textContent, 'Saved locally. Configure GitHub in Settings to sync.');
+});
+
+test('submitting unchanged status does not rewrite local data or sync', () => {
+  const { elements, storage } = setupDom();
+  const today = store.todayKey();
+  const existing = store.setEntry(store.emptyData(), today, 'good', 'same note', new Date('2026-07-07T10:00:00Z'));
+  let syncs = 0;
+  storage['statusboard.data'] = JSON.stringify(existing);
+  global.window.SB.github.sync = async () => {
+    syncs++;
+    return store.emptyData();
+  };
+
+  loadApp();
+
+  elements.note.value = 'same note';
+  elements['submit-btn'].click();
+
+  assert.deepStrictEqual(JSON.parse(storage['statusboard.data']), existing);
+  assert.strictEqual(syncs, 0);
+  assert.strictEqual(elements['sync-status'].textContent, 'No changes to save.');
 });

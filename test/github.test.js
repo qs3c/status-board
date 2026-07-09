@@ -31,6 +31,59 @@ test('sync merges local + remote and writes once on success', async () => {
   assert.strictEqual(merged.entries['2026-07-07'].level, 'good');
 });
 
+test('sync skips writing when merged data is unchanged from remote', async () => {
+  const remote = store.setEntry(store.emptyData(), '2026-07-07', 'good', '', new Date('2026-07-07T10:00:00Z'));
+  let puts = 0;
+  const deps = {
+    getRemote: async () => ({ data: JSON.parse(JSON.stringify(remote)), sha: 'sha1' }),
+    putRemote: async () => { puts++; }
+  };
+
+  const merged = await github.sync(deps, remote);
+
+  assert.strictEqual(puts, 0);
+  assert.deepStrictEqual(merged, remote);
+});
+
+test('sync writes when local data would add entries to remote', async () => {
+  const local = store.setEntry(store.emptyData(), '2026-07-07', 'good', '', new Date('2026-07-07T10:00:00Z'));
+  let puts = 0;
+  const deps = {
+    getRemote: async () => ({ data: store.emptyData(), sha: 'sha1' }),
+    putRemote: async () => { puts++; }
+  };
+
+  await github.sync(deps, local);
+
+  assert.strictEqual(puts, 1);
+});
+
+test('sync skips writing when remote has the same data with a different key order', async () => {
+  const local = {
+    version: 1,
+    entries: {
+      '2026-07-07': { level: 'good', note: '', updatedAt: '2026-07-07T10:00:00.000Z' },
+      '2026-07-06': { level: 'not_well', note: '', updatedAt: '2026-07-06T10:00:00.000Z' }
+    }
+  };
+  const remote = {
+    entries: {
+      '2026-07-06': { updatedAt: '2026-07-06T10:00:00.000Z', note: '', level: 'not_well' },
+      '2026-07-07': { updatedAt: '2026-07-07T10:00:00.000Z', note: '', level: 'good' }
+    },
+    version: 1
+  };
+  let puts = 0;
+  const deps = {
+    getRemote: async () => ({ data: remote, sha: 'sha1' }),
+    putRemote: async () => { puts++; }
+  };
+
+  await github.sync(deps, local);
+
+  assert.strictEqual(puts, 0);
+});
+
 test('sync retries after a 409 conflict, re-merges fresh remote, then succeeds', async () => {
   const local = store.setEntry(store.emptyData(), '2026-07-07', 'good', '', new Date('2026-07-07T10:00:00Z'));
   let gets = 0;
@@ -58,6 +111,7 @@ test('sync retries after a 409 conflict, re-merges fresh remote, then succeeds',
 });
 
 test('sync gives up after max retries and rejects', async () => {
+  const local = store.setEntry(store.emptyData(), '2026-07-07', 'good', '', new Date('2026-07-07T10:00:00Z'));
   const deps = {
     getRemote: async () => ({ data: store.emptyData(), sha: 'always-stale' }),
     putRemote: async () => {
@@ -66,7 +120,7 @@ test('sync gives up after max retries and rejects', async () => {
       throw e;
     }
   };
-  await assert.rejects(() => github.sync(deps, store.emptyData()), /conflict/);
+  await assert.rejects(() => github.sync(deps, local), /conflict/);
 });
 
 test('getRemote fetches GitHub content and decodes status data', async () => {
