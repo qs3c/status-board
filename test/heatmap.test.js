@@ -6,7 +6,7 @@ class FakeElement {
     this.tag = tag;
     this.children = [];
     this.className = '';
-    this.style = {};
+    this.style = { setProperty: (name, value) => { this.style[name] = value; } };
     this.title = '';
     this.listeners = {};
     this._innerHTML = '';
@@ -64,4 +64,22 @@ test('render creates a clickable yearly heatmap with level colors', () => {
 
   todayCell.listeners.click();
   assert.strictEqual(clicked, key);
+});
+
+test('render includes GitHub-style month and weekday axes', () => {
+  global.document = { createElement: (tag) => new FakeElement(tag) };
+  global.SB = {};
+  delete require.cache[require.resolve('../js/heatmap.js')];
+  require('../js/heatmap.js');
+
+  const container = new FakeElement('div');
+  global.SB.heatmap.render(container, { version: 1, entries: {} }, () => {});
+
+  const monthLabels = collectByClass(container, 'month-label');
+  const weekdayLabels = collectByClass(container, 'weekday-label');
+  const weekdayText = weekdayLabels.map((label) => label.textContent).filter(Boolean);
+
+  assert.ok(collectByClass(container, 'month-labels').length > 0);
+  assert.ok(monthLabels.length >= 12);
+  assert.deepStrictEqual(weekdayText, ['Mon', 'Wed', 'Fri']);
 });
