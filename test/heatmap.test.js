@@ -83,3 +83,39 @@ test('render includes GitHub-style month and weekday axes', () => {
   assert.ok(monthLabels.length >= 12);
   assert.deepStrictEqual(weekdayText, ['Mon', 'Wed', 'Fri']);
 });
+
+test('render puts date, status, and note in cell tooltips', () => {
+  global.document = { createElement: (tag) => new FakeElement(tag) };
+  global.SB = {};
+  delete require.cache[require.resolve('../js/heatmap.js')];
+  require('../js/heatmap.js');
+
+  const key = todayKey();
+  const container = new FakeElement('div');
+  global.SB.heatmap.render(
+    container,
+    { version: 1, entries: { [key]: { level: 'very_good', note: 'felt focused' } } },
+    () => {}
+  );
+
+  const cells = collectByClass(container, 'cell');
+  const todayCell = cells.find((cell) => cell.title.startsWith(key));
+
+  assert.strictEqual(todayCell.title, key + '\nVery good\nfelt focused');
+});
+
+test('render marks empty cell tooltips as no record', () => {
+  global.document = { createElement: (tag) => new FakeElement(tag) };
+  global.SB = {};
+  delete require.cache[require.resolve('../js/heatmap.js')];
+  require('../js/heatmap.js');
+
+  const key = todayKey();
+  const container = new FakeElement('div');
+  global.SB.heatmap.render(container, { version: 1, entries: {} }, () => {});
+
+  const cells = collectByClass(container, 'cell');
+  const todayCell = cells.find((cell) => cell.title.startsWith(key));
+
+  assert.strictEqual(todayCell.title, key + '\nNo record');
+});

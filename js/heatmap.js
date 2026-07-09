@@ -2,11 +2,20 @@
   var COLORS = { not_well: '#B5D4F4', good: '#378ADD', very_good: '#0C447C' };
   var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   var WEEKDAY_LABELS = ['', 'Mon', '', 'Wed', '', 'Fri', ''];
+  var LEVEL_LABELS = { not_well: 'Not well', good: 'Good', very_good: 'Very good' };
 
   function pad(n) { return n < 10 ? '0' + n : '' + n; }
 
   function keyOf(d) {
     return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  }
+
+  function tooltipFor(dateKey, entry) {
+    if (!entry) return dateKey + '\nNo record';
+
+    var lines = [dateKey, LEVEL_LABELS[entry.level] || entry.level || 'Unknown'];
+    lines.push((entry.note || '').trim() || 'No note');
+    return lines.join('\n');
   }
 
   function render(container, data, onCellClick) {
@@ -57,7 +66,7 @@
           var k = keyOf(cursor);
           var entry = entries[k];
           if (entry && COLORS[entry.level]) cell.style.background = COLORS[entry.level];
-          cell.title = k + (entry ? ' - ' + entry.level : '');
+          cell.title = tooltipFor(k, entry);
           (function (key) {
             cell.addEventListener('click', function () { onCellClick(key); });
           })(k);
